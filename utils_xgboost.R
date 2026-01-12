@@ -795,58 +795,6 @@ get_partial_grid <- function(X, var_name, quantile_points = 50) {
   return(df)
 }
 
-# get_partial_grid <- function(X, var_name, uniform_points = 10, quantile_points = 40,
-#                              x_lim_truncation = FALSE, 
-#                              lower_lim_truncation = 0.005,
-#                              upper_lim_truncation = 0.995) {
-#   vals <- X[[var_name]][!is.na(X[[var_name]])]
-#   
-#   if (x_lim_truncation) {
-#     # Truncate range
-#     low  <- quantile(vals, lower_lim_truncation, type = 7)
-#     high <- quantile(vals, upper_lim_truncation, type = 7)
-#     
-#     # Uniform grid within truncated limits
-#     grid_seq <- seq(low, high, length.out = uniform_points)
-#     
-#     # Quantile grid but truncated
-#     q_probs <- seq(lower_lim_truncation, upper_lim_truncation, length.out = quantile_points)
-#     grid_q  <- quantile(vals, probs = q_probs, type = 7)
-#     
-#   } else {
-#     # Full range
-#     low  <- min(vals)
-#     high <- max(vals)
-#     
-#     # Uniform grid across full range
-#     grid_seq <- seq(low, high, length.out = uniform_points)
-#     
-#     # Quantile grid across full range
-#     q_probs <- seq(0, 1, length.out = quantile_points)
-#     grid_q  <- quantile(vals, probs = q_probs, type = 7)
-#   }
-#   
-#   # Combine and clean
-#   df <- data.frame(var = sort(unique(c(grid_seq, grid_q))))
-#   colnames(df) <- var_name
-#   
-#   return(df)
-# }
-# get_partial_grid <- function(X, var_name, uniform_points = 10, quantile_points = 40,
-#                              x_lim_truncation = TRUE, 
-#                              lower_lim_truncation = 0.005,
-#                              upper_lim_truncation = 0.995) {
-#   vals <- X[[var_name]][!is.na(X[[var_name]])]
-#   low  <- quantile(vals, 0.005, type = 7)
-#   high <- quantile(vals, 0.995, type = 7)
-#   grid_seq <- seq(low, high, length.out = uniform_points)
-#   grid_q <- quantile(vals, probs = seq(0, 1, length.out = quantile_points), type = 7)
-#   df <- data.frame(var = sort(unique(c(grid_seq, grid_q))))
-#   colnames(df) <- var_name
-#   
-#   return(df)
-# }
-
 k_fold_xgboost <- function(X, y, k = 10, params, 
                            nrounds = 1200, 
                            quantile_points = 50,
@@ -860,11 +808,6 @@ k_fold_xgboost <- function(X, y, k = 10, params,
                            is_classification = FALSE,
                            is_multiclass = FALSE) {   
   cat("Performing", k, "fold cross-validation of XGBoost model\n")
-  # cat("\tParameters:\n")
-  # for (nm in names(params)) {
-  #   cat(paste0("\t  ", nm, " = ", params[[nm]], "\n"))
-  # }
-  # cat("\tNumber of trees:", nrounds, "\n")
   
   set.seed(seed)
   
@@ -1261,63 +1204,6 @@ plot_vimp <- function(model_list, metric = "Gain", top_n = NULL,
   return(list(plot = p, var_order = names(var_order)))
 }
 
-# plot_vimp <- function(model_list, metric = "Gain") {
-#   feature_labels <- formula_var_name_to_english
-#   
-#   # Extract importance from each model
-#   all_importance <- lapply(model_list, function(mod) {
-#     imp <- xgb.importance(model = mod)
-#     imp$Feature <- as.character(imp$Feature)
-#     imp
-#   })
-#   
-#   # Combine and summarize
-#   importance_stats <- bind_rows(all_importance) %>%
-#     group_by(Feature) %>%
-#     summarise(
-#       mean_val = mean(.data[[metric]], na.rm = TRUE),
-#       sd_val   = sd(.data[[metric]], na.rm = TRUE),
-#       n        = n(),
-#       .groups  = "drop"
-#     ) %>%
-#     mutate(
-#       se = sd_val / sqrt(n),
-#       ci_lower = mean_val - 1.96 * se,
-#       ci_upper = mean_val + 1.96 * se
-#     )
-#   
-#   # English mapping of feature names 
-#   if (!is.null(feature_labels)) {
-#     importance_stats$Feature_label <- feature_labels[importance_stats$Feature]
-#     # fallback to original Feature name if label is NA
-#     importance_stats$Feature_label <- ifelse(
-#       is.na(importance_stats$Feature_label),
-#       importance_stats$Feature,
-#       importance_stats$Feature_label
-#     )
-#   } else {
-#     importance_stats$Feature_label <- importance_stats$Feature
-#   }
-#   
-#   # Order variables by mean importance
-#   importance_stats <- importance_stats %>% arrange(desc(mean_val))
-#   var_order <- importance_stats$Feature_label  # <- this is the ordered variable list
-#   
-#   # Plot
-#   p <- ggplot(importance_stats, aes(x = reorder(Feature_label, mean_val), y = mean_val)) +
-#     geom_col(fill = "steelblue") +
-#     geom_errorbar(aes(ymin = ci_lower, ymax = ci_upper), width = 0.3, color = "black") +
-#     coord_flip() +
-#     labs(
-#       x = "Feature",
-#       y = paste("Average", metric, "(95% CI)"),
-#       title = paste("XGBoost Variable Importance (", metric, ")", sep = "")
-#     ) +
-#     theme_minimal()
-#   
-#   # Return plot + ordered variable list
-#   return(list(plot = p, var_order = names(var_order)))
-# }
 
 # Partial Plots ----
 plot_pdp_aats <- function(xgboost_results, X, variables = NULL, 
@@ -1843,88 +1729,6 @@ compute_conditional_pdp <- function(model_list, X, group_var,
   
   return(summary_df)
 }
-
-# compute_conditional_pdp <- function(model_list, X, group_var,
-#                                     facet_var1 = NULL, facet_var2 = NULL,
-#                                     pred_var, grid.resolution = 50) {
-#   # Convert to factors and preserve levels
-#   group_var <- factor(group_var, levels = levels(group_var) %||% unique(group_var))
-#   facet_var1 <- if (!is.null(facet_var1)) factor(facet_var1, levels = levels(facet_var1) %||% unique(facet_var1)) else NULL
-#   facet_var2 <- if (!is.null(facet_var2)) factor(facet_var2, levels = levels(facet_var2) %||% unique(facet_var2)) else NULL
-# 
-#   group_levels <- levels(group_var)
-#   facet1_levels <- if (!is.null(facet_var1)) levels(facet_var1) else NULL
-#   facet2_levels <- if (!is.null(facet_var2)) levels(facet_var2) else NULL
-# 
-#   k <- length(model_list)
-#   X_mat <- model.matrix(~ . - 1, data = X)
-# 
-#   conditional_partial_list <- list()
-# 
-#   for (i in seq_len(k)) {
-#     fit <- model_list[[i]]
-# 
-#     for (gr in group_levels) {
-#       for (fc1 in facet1_levels %||% NA) {
-#         for (fc2 in facet2_levels %||% NA) {
-#           
-#           cond1 <- if (is.null(facet_var1)) {
-#             rep(TRUE, length(group_var))  # all rows match
-#           } else {
-#             facet_var1 == fc1
-#           }
-#           
-#           cond2 <- if (is.null(facet_var2)) {
-#             rep(TRUE, length(group_var))
-#           } else {
-#             facet_var2 == fc2
-#           }
-#           
-#           idx <- which(group_var == gr & cond1 & cond2)
-#           
-#           if (length(idx) == 0) next
-#           message(sprintf("Fold %d / %d | Group: %s | Facet1: %s | Facet2: %s | Rows: %d",
-#                           i, k, gr,
-#                           ifelse(is.null(fc1), "NA", fc1),
-#                           ifelse(is.null(fc2), "NA", fc2),
-#                           length(idx)))
-# 
-#           pd <- pdp::partial(
-#             object = fit,
-#             pred.var = pred_var,
-#             train = as.data.frame(X_mat[idx, , drop = FALSE]),
-#             grid.resolution = grid.resolution,
-#             progress = "none"
-#           )
-# 
-#           pd$group_level <- factor(gr, levels = group_levels)
-#           if (!is.null(facet_var1)) pd$facet_var1 <- facet_var1[idx][1]
-#           if (!is.null(facet_var2)) pd$facet_var2 <- facet_var2[idx][1]
-#           pd$fold <- i
-# 
-#           conditional_partial_list[[length(conditional_partial_list) + 1]] <- pd
-#         }
-#       }
-#     }
-#   }
-# 
-#   conditional_all <- bind_rows(conditional_partial_list)
-# 
-#   # Summarize across folds
-#   summary_df <- conditional_all %>%
-#     group_by_at(vars(all_of(pred_var), group_level, facet_var1, facet_var2)) %>%
-#     summarise(
-#       yhat_mean = mean(yhat, na.rm = TRUE),
-#       yhat_sd   = sd(yhat, na.rm = TRUE),
-#       n_folds   = n(),
-#       yhat_se   = yhat_sd / sqrt(n_folds),
-#       yhat_lower = yhat_mean - 1.96 * yhat_se,
-#       yhat_upper = yhat_mean + 1.96 * yhat_se,
-#       .groups = "drop"
-#     )
-# 
-#   return(summary_df)
-# }
 
 
 # Plot PDP results (fast) 
