@@ -3,6 +3,7 @@ source("/studies/cardiac/support/cpb/adequate/analyses/fangm/xgboost/utils_xgboo
 source("/studies/cardiac/support/cpb/adequate/analyses/fangm/xgboost/utils_3d.R")
 pacman::p_load(ggeffects, gratia, plotly, lme4, mgcv)
 
+# Data set up ----
 feature_labels_to_english <- c(
   map_delta_adv = "ΔMAP (MAPₜ+₁ − MAPₜ)",
   pred = "ΔMAP (MAPₜ+₁ − MAPₜ)",
@@ -19,56 +20,6 @@ feature_labels_to_english <- c(
   ci_lag    = "CIₜ₋₁"
 )
 
-df_tpr_interp <- readRDS("/studies/cardiac/support/cpb/adequate/analyses/fangm/map_ci_modeling/df_tpr_interp.rds")
-
-df_tpr_interp_with_cross_clamp <- df_tpr_interp %>%
-  left_join(
-    cldta_onpump_baseline_df %>% select(surg_id, dtmccon, dtmccof, aoxclmp, iv_aocc_hr),
-    by = "surg_id"
-  ) %>%
-  filter(aoxclmp == TRUE) %>% 
-  mutate(
-    calculated_aocc_time_hr = as.numeric(difftime(dtmccof, dtmccon, units = "hours")),
-    # add fractional hours as seconds
-    iv_evth_to_dtm = dtmbpon1 + iv_evth * 3600
-  ) %>%
-  filter(
-    dtmccon >= dtmbpon1,
-    dtmccof <= dtmbpof1,
-    abs(iv_aocc_hr - calculated_aocc_time_hr) < 5/60,
-    iv_evth_to_dtm >= dtmccon,
-    iv_evth_to_dtm <= dtmbpof1
-  ) %>%
-  get_pressor_df_mcg() # %>% 
-
-dim(df_tpr_interp_with_cross_clamp)
-get_n_surg(df_tpr_interp_with_cross_clamp)
-
-df_tpr_interp_with_cross_clamp <- df_tpr_interp_with_cross_clamp %>%
-  arrange(surg_id, iv_evth) %>%
-  group_by(surg_id) %>%
-  mutate(
-    iv_gap = iv_evth - lag(iv_evth),               # difference in hours
-    new_stretch = iv_gap > (2 / 60),              # TRUE if gap > 2 min
-    stretch_id = cumsum(replace_na(new_stretch, FALSE))   # cumulative count
-  ) %>%
-  ungroup()
-
-
-stretch_summary <- df_tpr_interp_with_cross_clamp %>%
-  group_by(surg_id, stretch_id) %>%
-  summarise(
-    stretch_minutes = (max(iv_evth) - min(iv_evth)) * 60,
-    .groups = "drop"
-  ) %>%
-  group_by(surg_id) %>%
-  summarise(
-    avg_stretch_minutes = mean(stretch_minutes),
-    n_stretches = n(),
-    .groups = "drop"
-  )
-stretch_summary
-summary(stretch_summary$avg_stretch_minutes)
 
 map_feature_df <- df_tpr_interp_with_cross_clamp %>%
   arrange(surg_id, stretch_id, iv_evth) %>%
@@ -114,46 +65,13 @@ summary(map_feature_df)
 get_n_surg(map_feature_df)
 
 
-# Descriptive modeling ----
-map_feature_df_set_ci_delta <- map_feature_df %>% 
-  filter(ci_delta >= 0.09 & ci_delta <= 0.11) 
-dim(map_feature_df_set_ci_delta)
-get_n_surg(map_feature_df_set_ci_delta)
-names(map_feature_df_set_ci_delta)
-
+# Main figure  ----
 map_feature_df_set_ci_delta <- map_feature_df %>% 
   filter(ci_delta >= 0.12) 
 # plot_map_and_delta(map_feature_df_set_ci_delta, custom_title = "ΔCI ≥ 0.12")
 map_ci_long <- get_df_long(map_feature_df_set_ci_delta) 
 # compare_spline_models(map_ci_long)
-p1 <- get_model_plot(map_ci_long, title = "ΔCI ≥ 0.12") 
-
-
-map_feature_df_set_ci_delta <- map_feature_df %>% 
-  filter(ci_delta >= 0.09 & ci_delta <= 0.11) 
-dim(map_feature_df_set_ci_delta)
-# plot_map_and_delta(map_feature_df_set_ci_delta, custom_title = "ΔCI ~ +0.1")
-map_ci_long <- get_df_long(map_feature_df_set_ci_delta) 
-# compare_spline_models(map_ci_long)
-p2 <- get_model_plot(map_ci_long, title = "ΔCI ~ +0.1") 
-
-
-map_feature_df_set_ci_delta <- map_feature_df %>% 
-  filter(ci_delta >= 0.04 & ci_delta <= 0.06) 
-# plot_map_and_delta(map_feature_df_set_ci_delta, custom_title = "ΔCI ~ +0.05")
-map_ci_long <- get_df_long(map_feature_df_set_ci_delta) 
-# compare_spline_models(map_ci_long)
-p3 <- get_model_plot(map_ci_long, title = "ΔCI ~ +0.05") 
-
-p3 | p2 | p1 
-
-## split MAP models ----
-map_feature_df_set_ci_delta <- map_feature_df %>% 
-  filter(ci_delta >= 0.12) 
-# plot_map_and_delta(map_feature_df_set_ci_delta, custom_title = "ΔCI ≥ 0.12")
-map_ci_long <- get_df_long(map_feature_df_set_ci_delta) 
-# compare_spline_models(map_ci_long)
-p1 <- get_model_plot(map_ci_long, title = "ΔPump Flow Index ≥ +0.12 L/min/m²", 
+p1 <- get_model_plot(map_ci_long, title = "ΔPump Flow Index ≥ +0.12 L·min⁻¹·m⁻²", 
                      ci_model_split_map_delta  = FALSE,
                      map_model_split_map_delta = TRUE,
                      map_ylim = c(62, 77))
@@ -164,7 +82,7 @@ dim(map_feature_df_set_ci_delta)
 # plot_map_and_delta(map_feature_df_set_ci_delta, custom_title = "ΔCI ~ +0.1")
 map_ci_long <- get_df_long(map_feature_df_set_ci_delta) 
 # compare_spline_models(map_ci_long)
-p2 <- get_model_plot(map_ci_long, title = "ΔPump Flow Index +0.09 - 0.11 L/min/m²", 
+p2 <- get_model_plot(map_ci_long, title = "ΔPump Flow Index +0.09 - 0.11 L·min⁻¹·m⁻²", 
                      ci_model_split_map_delta  = FALSE,
                      map_model_split_map_delta = TRUE,
                      map_ylim = c(62, 77)) 
@@ -175,7 +93,7 @@ map_feature_df_set_ci_delta <- map_feature_df %>%
 # plot_map_and_delta(map_feature_df_set_ci_delta, custom_title = "ΔCI ~ +0.05")
 map_ci_long <- get_df_long(map_feature_df_set_ci_delta) 
 # compare_spline_models(map_ci_long)
-p3 <- get_model_plot(map_ci_long, title = "ΔPump Flow Index +0.04 - 0.06 L/min/m²", 
+p3 <- get_model_plot(map_ci_long, title = "ΔPump Flow Index +0.04 - 0.06 L·min⁻¹·m⁻²", 
                      ci_model_split_map_delta  = FALSE,
                      map_model_split_map_delta = TRUE,
                      map_ylim = c(62, 77)) 
@@ -183,7 +101,7 @@ p3 | p2 | p1
 p4 <- p3 | p2 | p1 
 save("map_ci_desc_knots.png", p4, 15, 10)
 
-## split CI values ----
+# Supplemental figure: stratify by CI values ----
 ## < 2 ----
 map_feature_df_set_ci <- map_feature_df %>% 
   filter(ci_lag < 2.0)
@@ -224,7 +142,7 @@ p3 <- get_model_plot(map_ci_long, title = "ΔCI ~ +0.04 - 0.06",
                      map_ylim = c(62, 77)) 
 (p3 | p2 | p1) + 
   plot_annotation(
-    title = "CI < 2 L/min/m²"
+    title = "CI < 2 L·min⁻¹·m⁻²"
   )
 
 ## 2 - 2.2 ----
@@ -267,7 +185,7 @@ p3 <- get_model_plot(map_ci_long, title = "ΔCI ~ +0.04 - 0.06",
                      map_ylim = c(62, 77)) 
 (p3 | p2 | p1) + 
   plot_annotation(
-    title = "CI [2.0 - 2.2) L/min/m²"
+    title = "CI [2.0 - 2.2) L·min⁻¹·m⁻²"
   )
 
 ## 2.2 - 2.4 ----
@@ -310,7 +228,7 @@ p3 <- get_model_plot(map_ci_long, title = "ΔCI ~ +0.04 - 0.06",
                      map_ylim = c(62, 77)) 
 (p3 | p2 | p1) + 
   plot_annotation(
-    title = "CI [2.2, 2.4) L/min/m²"
+    title = "CI [2.2, 2.4) L·min⁻¹·m⁻²"
   )
 
 
@@ -354,5 +272,5 @@ p3 <- get_model_plot(map_ci_long, title = "ΔCI ~ +0.04 - 0.06",
                      map_ylim = c(62, 77)) 
 (p3 | p2 | p1) + 
   plot_annotation(
-    title = "CI ≥ 2.4 L/min/m²"
+    title = "CI ≥ 2.4 L·min⁻¹·m⁻²"
   )

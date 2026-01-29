@@ -1,4 +1,4 @@
-pacman::p_load(ggh4x)
+pacman::p_load(ggh4x, splines)
 
 # Plot violin boxplots of MAP vs time 
 plot_map_and_delta <- function(df, custom_title = "") {
@@ -286,7 +286,7 @@ get_model_plot <- function(
     ci_pred <- time_grid %>%
       mutate(fitted = predict(ci_model, newdata = ., re.form = NA),
              group = "All",
-             outcome = "CI (L/min/m²)",
+             outcome = "CI (L·min⁻¹·m⁻²)",
              alpha = nrow(data),
              linetype = "combined")
     
@@ -310,11 +310,11 @@ get_model_plot <- function(
                            group = paste0("ΔMAP ≥ 0 (N=", n_pos, ")"), alpha = n_pos, linetype = "combined"),
       time_grid %>% mutate(fitted = predict(ci_model_neg, newdata = ., re.form = NA),
                            group = paste0("ΔMAP < 0 (N=", n_neg, ")"), alpha = n_neg, linetype = "combined")
-    ) %>% mutate(outcome = "CI (L/min/m²)")
+    ) %>% mutate(outcome = "CI (L·min⁻¹·m⁻²)")
   }
   
   plot_df <- bind_rows(map_pred, ci_pred) %>%
-    mutate(outcome = factor(outcome, levels = c("CI (L/min/m²)", "MAP (mmHg)")))
+    mutate(outcome = factor(outcome, levels = c("CI (L·min⁻¹·m⁻²)", "MAP (mmHg)")))
   
   if (map_model_split_map_delta && add_delta_annotation) {
     map_eval <- plot_df %>%
@@ -371,7 +371,7 @@ get_model_plot <- function(
     ggh4x::facetted_pos_scales(
       y = list(
         outcome == "MAP (mmHg)" ~ scale_y_continuous(limits = map_ylim),
-        outcome == "CI (L/min/m²)" ~ scale_y_continuous(limits = ci_ylim)
+        outcome == "CI (L·min⁻¹·m⁻²)" ~ scale_y_continuous(limits = ci_ylim)
       )
     ) +
     labs(x = "Time offset (6-min window)", y = "Fitted value", title = title, color = NULL) +
@@ -394,3 +394,4 @@ get_model_plot <- function(
   
   p
 }
+
